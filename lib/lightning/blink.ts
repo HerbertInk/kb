@@ -45,7 +45,6 @@ export async function sendPayment(
       walletId,
       amount: amountSats,
       lnAddress: lightningAddress,
-      memo: memo || 'KB Quiz Reward',
     },
   }
 
