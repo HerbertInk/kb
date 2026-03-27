@@ -1,12 +1,16 @@
 import { PrismaClient } from '@/app/generated/prisma/client'
-import { PrismaLibSql } from '@prisma/adapter-libsql'
+import { PrismaPg } from '@prisma/adapter-pg'
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
 
 function createPrismaClient() {
-  const adapter = new PrismaLibSql({
-    url: 'file:./prisma/dev.db',
-  })
+  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL
+
+  if (!connectionString) {
+    throw new Error('DATABASE_URL or POSTGRES_PRISMA_URL environment variable is not set')
+  }
+
+  const adapter = new PrismaPg({ connectionString })
   return new PrismaClient({ adapter })
 }
 

@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model Quiz {
@@ -16,12 +16,11 @@ model Quiz {
   setterFeePaid  Boolean       @default(false)
   status         String        @default("draft")
   createdAt      DateTime      @default(now())
-  // Payout tracking
-  payoutStatus   String?       // "pending" | "success" | "failed"
-  payoutError    String?       // error message if failed
-  payoutHash     String?       // payment hash if success
-  winnerName     String?       // winner name for display
-  winnerScore    Int?          // winner score for display
+  payoutStatus   String?
+  payoutError    String?
+  payoutHash     String?
+  winnerName     String?
+  winnerScore    Int?
   questions      Question[]
   participants   Participant[]
 }
