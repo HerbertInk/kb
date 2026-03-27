@@ -8,21 +8,24 @@ datasource db {
 }
 
 model Quiz {
-  id             String        @id @default(cuid())
-  title          String
-  description    String?
-  accessCode     String        @unique
-  rewardSats     Int
-  setterFeePaid  Boolean       @default(false)
-  status         String        @default("draft")
-  createdAt      DateTime      @default(now())
-  payoutStatus   String?
-  payoutError    String?
-  payoutHash     String?
-  winnerName     String?
-  winnerScore    Int?
-  questions      Question[]
-  participants   Participant[]
+  id              String        @id @default(cuid())
+  title           String
+  description     String?
+  accessCode      String        @unique
+  rewardSats      Int
+  setterFeePaid   Boolean       @default(false)
+  status          String        @default("draft")
+  createdAt       DateTime      @default(now())
+  // Sender wallet — if empty, uses the default from env
+  senderWalletId  String?
+  // Payout tracking
+  payoutStatus    String?
+  payoutError     String?
+  payoutHash      String?
+  winnerName      String?
+  winnerScore     Int?
+  questions       Question[]
+  participants    Participant[]
 }
 
 model Question {

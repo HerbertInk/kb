@@ -34,7 +34,8 @@ async function attemptPayout(quizId: string) {
     const result = await lightning.sendPayment(
       winner.lightningAddress,
       quiz.rewardSats,
-      `KB Quiz reward: ${quiz.title}`
+      `KB Quiz reward: ${quiz.title}`,
+      quiz.senderWalletId
     )
 
     // Mark payout as success

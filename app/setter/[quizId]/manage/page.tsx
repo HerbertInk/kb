@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Copy, Zap, Users, CheckCircle, ExternalLink, Trash2, Pencil, X, Check, Link2, Share2, AlertTriangle, RefreshCw, Wallet } from 'lucide-react'
+import { Copy, Zap, Users, CheckCircle, ExternalLink, Trash2, Pencil, X, Check, Link2, Share2, AlertTriangle, RefreshCw, HelpCircle, Clock, BarChart3 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Header, PageContainer, StatusBadge } from '@/components/common'
 import { Button, Card } from '@/components/ui'
@@ -15,20 +15,14 @@ interface QuizDetails {
   accessCode: string
   rewardSats: number
   status: string
+  senderWalletId: string | null
   payoutStatus: string | null
   payoutError: string | null
   payoutHash: string | null
   winnerName: string | null
   winnerScore: number | null
+  createdAt: string
   _count: { questions: number; participants: number }
-}
-
-interface WalletInfo {
-  mode: string
-  connected: boolean
-  balance?: number
-  walletId?: string
-  error?: string
 }
 
 export default function ManageQuizPage() {
@@ -37,7 +31,6 @@ export default function ManageQuizPage() {
 
   const [quiz, setQuiz] = useState<QuizDetails | null>(null)
   const [leaderboard, setLeaderboard] = useState<Record<string, unknown>[]>([])
-  const [wallet, setWallet] = useState<WalletInfo | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -60,19 +53,12 @@ export default function ManageQuizPage() {
     setLeaderboard(data.participants)
   }, [quizId])
 
-  const fetchWallet = useCallback(async () => {
-    const res = await fetch('/api/wallet')
-    const data = await res.json()
-    setWallet(data)
-  }, [])
-
   useEffect(() => {
     fetchDetails()
     fetchLeaderboard()
-    fetchWallet()
     const interval = setInterval(fetchLeaderboard, 3000)
     return () => clearInterval(interval)
-  }, [fetchDetails, fetchLeaderboard, fetchWallet])
+  }, [fetchDetails, fetchLeaderboard])
 
   async function updateStatus(action: 'activate' | 'end') {
     if (action === 'end') setEnding(true)
@@ -156,7 +142,10 @@ export default function ManageQuizPage() {
   }
 
   const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/quiz/${quizId}/join` : `/quiz/${quizId}/join`
-  const canAfford = wallet?.balance != null && wallet.balance >= quiz.rewardSats
+  const completedCount = leaderboard.filter(p => p.completedAt).length
+  const avgScore = leaderboard.length > 0
+    ? Math.round(leaderboard.reduce((sum, p) => sum + (p.score as number), 0) / leaderboard.length * 10) / 10
+    : 0
 
   return (
     <main className="min-h-screen">
@@ -209,46 +198,51 @@ export default function ManageQuizPage() {
             )}
           </motion.div>
 
-          {/* Reward Wallet Pool */}
+          {/* Quiz Stats */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }}>
             <Card className="p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Wallet size={16} className="text-[--btc]" />
-                <h2 className="font-display font-bold">Reward Pool</h2>
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 size={16} className="text-[--btc]" />
+                <h2 className="font-display font-bold">Quiz Stats</h2>
               </div>
-
-              {!wallet ? (
-                <div className="shimmer h-12 rounded-lg" />
-              ) : !wallet.connected ? (
-                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
-                  <p className="text-yellow-400 text-sm font-medium mb-1">Wallet not connected</p>
-                  <p className="text-[--muted] text-xs mb-3">
-                    Connect your Blink wallet to fund quiz rewards. Set <code className="bg-[--surface-2] px-1.5 py-0.5 rounded text-[--btc] font-mono text-[10px]">BLINK_API_KEY</code> and <code className="bg-[--surface-2] px-1.5 py-0.5 rounded text-[--btc] font-mono text-[10px]">BLINK_WALLET_ID</code> in your .env file.
-                  </p>
-                  <p className="text-[--muted] text-xs">
-                    Get your free API key at <a href="https://dashboard.blink.sv" target="_blank" rel="noopener noreferrer" className="text-[--btc] hover:underline">dashboard.blink.sv</a>
-                  </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-[--surface-2] rounded-xl p-3.5 text-center">
+                  <div className="flex items-center justify-center gap-1.5 text-[--muted] mb-1">
+                    <HelpCircle size={12} />
+                    <span className="text-xs">Questions</span>
+                  </div>
+                  <p className="text-2xl font-bold font-mono">{quiz._count.questions}</p>
                 </div>
-              ) : (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-baseline gap-2 mb-1">
-                      <span className="text-3xl font-bold font-mono text-[--btc]">{wallet.balance?.toLocaleString()}</span>
-                      <span className="text-sm text-[--muted]">sats</span>
-                    </div>
-                    <p className="text-xs text-[--muted]">
-                      {wallet.mode === 'demo' ? 'Demo wallet (simulated)' : 'Blink wallet balance'}
-                      {wallet.balance != null && quiz.rewardSats > 0 && (
-                        <span className={`ml-2 ${canAfford ? 'text-[--success]' : 'text-[--error]'}`}>
-                          {canAfford ? '✓ Enough for this quiz reward' : `✗ Need ${(quiz.rewardSats - wallet.balance).toLocaleString()} more sats`}
-                        </span>
-                      )}
-                    </p>
+                <div className="bg-[--surface-2] rounded-xl p-3.5 text-center">
+                  <div className="flex items-center justify-center gap-1.5 text-[--muted] mb-1">
+                    <Users size={12} />
+                    <span className="text-xs">Joined</span>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-[--muted]">Quiz reward</p>
-                    <p className="font-mono font-bold text-lg">{quiz.rewardSats.toLocaleString()} sats</p>
+                  <p className="text-2xl font-bold font-mono">{quiz._count.participants}</p>
+                </div>
+                <div className="bg-[--surface-2] rounded-xl p-3.5 text-center">
+                  <div className="flex items-center justify-center gap-1.5 text-[--muted] mb-1">
+                    <CheckCircle size={12} />
+                    <span className="text-xs">Completed</span>
                   </div>
+                  <p className="text-2xl font-bold font-mono">{completedCount}</p>
+                </div>
+                <div className="bg-[--surface-2] rounded-xl p-3.5 text-center">
+                  <div className="flex items-center justify-center gap-1.5 text-[--muted] mb-1">
+                    <Zap size={12} className="text-[--btc]" />
+                    <span className="text-xs">Reward</span>
+                  </div>
+                  <p className="text-2xl font-bold font-mono text-[--btc]">{quiz.rewardSats.toLocaleString()}</p>
+                  <p className="text-[10px] text-[--muted]">sats</p>
+                </div>
+              </div>
+              {leaderboard.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-[--border] flex flex-wrap gap-x-6 gap-y-1 text-xs text-[--muted]">
+                  <span>Avg score: <strong className="text-[--text]">{avgScore}</strong></span>
+                  <span>Completion rate: <strong className="text-[--text]">{quiz._count.participants > 0 ? Math.round(completedCount / quiz._count.participants * 100) : 0}%</strong></span>
+                  {quiz.senderWalletId && (
+                    <span>Custom wallet: <strong className="text-[--btc] font-mono">{quiz.senderWalletId.slice(0, 8)}...</strong></span>
+                  )}
                 </div>
               )}
             </Card>
@@ -292,9 +286,6 @@ export default function ManageQuizPage() {
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <Card className="p-5 space-y-4">
               <h2 className="font-display font-bold text-lg">Controls</h2>
-              <p className="text-[--muted] text-sm">
-                {quiz._count.questions} questions · {quiz.rewardSats.toLocaleString()} sats · {quiz._count.participants} participants
-              </p>
               <div className="flex flex-wrap gap-3">
                 {quiz.status === 'draft' && quiz._count.questions > 0 && (
                   <Button variant="success" onClick={() => updateStatus('activate')}>Activate Quiz</Button>
@@ -333,7 +324,7 @@ export default function ManageQuizPage() {
               {quiz.payoutStatus === 'pending' && (
                 <Card className="p-5 border-yellow-500/30">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-4 h-4 border-2 border-yellow-500/30 border-t-yellow-500 rounded-full animate-spin" />
+                    <Clock size={16} className="text-yellow-400 animate-pulse" />
                     <h2 className="font-display font-bold text-yellow-400">Sending Payment...</h2>
                   </div>
                   <p className="text-[--muted] text-sm">Payment to {quiz.winnerName} is being processed.</p>

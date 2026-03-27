@@ -2,16 +2,17 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronUp, Wallet } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Header, PageContainer } from '@/components/common'
 import { Button, Input, Card } from '@/components/ui'
 
 export default function NewQuizPage() {
   const router = useRouter()
-  const [form, setForm] = useState({ title: '', description: '', rewardSats: '' })
+  const [form, setForm] = useState({ title: '', description: '', rewardSats: '', senderWalletId: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showWallet, setShowWallet] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -21,7 +22,12 @@ export default function NewQuizPage() {
       const res = await fetch('/api/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, rewardSats: Number(form.rewardSats) }),
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description,
+          rewardSats: Number(form.rewardSats),
+          senderWalletId: form.senderWalletId || null,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -78,6 +84,35 @@ export default function NewQuizPage() {
                 helpText="Paid to the highest scorer via Lightning Network"
                 required
               />
+
+              {/* Wallet toggle */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowWallet(!showWallet)}
+                  className="flex items-center gap-2 text-sm text-[--muted] hover:text-[--text] transition-colors"
+                >
+                  <Wallet size={14} />
+                  <span>Sender wallet</span>
+                  {showWallet ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+
+                {showWallet && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-3"
+                  >
+                    <Input
+                      label="Blink Wallet ID (optional)"
+                      placeholder="Leave empty to use default wallet"
+                      value={form.senderWalletId}
+                      onChange={e => setForm(p => ({ ...p, senderWalletId: e.target.value }))}
+                      helpText="Override the default Blink wallet for this quiz. Get your wallet ID from dashboard.blink.sv"
+                    />
+                  </motion.div>
+                )}
+              </div>
 
               {error && <p className="text-[--error] text-sm">{error}</p>}
 

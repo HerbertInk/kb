@@ -13,7 +13,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { title, description, rewardSats } = await req.json()
+  const { title, description, rewardSats, senderWalletId } = await req.json()
 
   if (!title || !rewardSats) {
     return NextResponse.json({ error: 'title and rewardSats required' }, { status: 400 })
@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       rewardSats: Number(rewardSats),
       accessCode: generateAccessCode(),
       setterFeePaid: true,
+      senderWalletId: senderWalletId || null,
     },
   })
 

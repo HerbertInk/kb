@@ -1,7 +1,8 @@
 export async function sendPayment(
   lightningAddress: string,
   amountSats: number,
-  memo: string
+  memo: string,
+  _overrideWalletId?: string | null
 ): Promise<{ success: boolean; paymentHash: string }> {
   console.log('═══════════ LIGHTNING DEMO PAYOUT ═══════════')
   console.log(`→ Recipient : ${lightningAddress}`)
