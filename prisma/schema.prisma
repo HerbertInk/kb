@@ -8,16 +8,22 @@ datasource db {
 }
 
 model Quiz {
-  id           String        @id @default(cuid())
-  title        String
-  description  String?
-  accessCode   String        @unique
-  rewardSats   Int
-  setterFeePaid Boolean      @default(false)
-  status       String        @default("draft")
-  createdAt    DateTime      @default(now())
-  questions    Question[]
-  participants Participant[]
+  id             String        @id @default(cuid())
+  title          String
+  description    String?
+  accessCode     String        @unique
+  rewardSats     Int
+  setterFeePaid  Boolean       @default(false)
+  status         String        @default("draft")
+  createdAt      DateTime      @default(now())
+  // Payout tracking
+  payoutStatus   String?       // "pending" | "success" | "failed"
+  payoutError    String?       // error message if failed
+  payoutHash     String?       // payment hash if success
+  winnerName     String?       // winner name for display
+  winnerScore    Int?          // winner score for display
+  questions      Question[]
+  participants   Participant[]
 }
 
 model Question {

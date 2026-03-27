@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Copy, Zap, Users, CheckCircle, ExternalLink, Trash2, Pencil, X, Check, Link2, Share2 } from 'lucide-react'
+import { Copy, Zap, Users, CheckCircle, ExternalLink, Trash2, Pencil, X, Check, Link2, Share2, AlertTriangle, RefreshCw, Wallet } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Header, PageContainer, StatusBadge } from '@/components/common'
 import { Button, Card } from '@/components/ui'
@@ -15,7 +15,20 @@ interface QuizDetails {
   accessCode: string
   rewardSats: number
   status: string
+  payoutStatus: string | null
+  payoutError: string | null
+  payoutHash: string | null
+  winnerName: string | null
+  winnerScore: number | null
   _count: { questions: number; participants: number }
+}
+
+interface WalletInfo {
+  mode: string
+  connected: boolean
+  balance?: number
+  walletId?: string
+  error?: string
 }
 
 export default function ManageQuizPage() {
@@ -24,7 +37,7 @@ export default function ManageQuizPage() {
 
   const [quiz, setQuiz] = useState<QuizDetails | null>(null)
   const [leaderboard, setLeaderboard] = useState<Record<string, unknown>[]>([])
-  const [payout, setPayout] = useState<Record<string, Record<string, unknown>> | null>(null)
+  const [wallet, setWallet] = useState<WalletInfo | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -32,6 +45,8 @@ export default function ManageQuizPage() {
   const [saving, setSaving] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [ending, setEnding] = useState(false)
+  const [retrying, setRetrying] = useState(false)
 
   const fetchDetails = useCallback(async () => {
     const res = await fetch(`/api/quiz/${quizId}/details`)
@@ -45,23 +60,42 @@ export default function ManageQuizPage() {
     setLeaderboard(data.participants)
   }, [quizId])
 
+  const fetchWallet = useCallback(async () => {
+    const res = await fetch('/api/wallet')
+    const data = await res.json()
+    setWallet(data)
+  }, [])
+
   useEffect(() => {
     fetchDetails()
     fetchLeaderboard()
+    fetchWallet()
     const interval = setInterval(fetchLeaderboard, 3000)
     return () => clearInterval(interval)
-  }, [fetchDetails, fetchLeaderboard])
+  }, [fetchDetails, fetchLeaderboard, fetchWallet])
 
   async function updateStatus(action: 'activate' | 'end') {
+    if (action === 'end') setEnding(true)
     const res = await fetch(`/api/quiz/${quizId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action }),
     })
-    const data = await res.json()
-    if (action === 'end' && data.winner) setPayout(data)
+    await res.json()
+    setEnding(false)
     fetchDetails()
     fetchLeaderboard()
+  }
+
+  async function retryPayout() {
+    setRetrying(true)
+    await fetch(`/api/quiz/${quizId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'retry-payout' }),
+    })
+    setRetrying(false)
+    fetchDetails()
   }
 
   function startEditing() {
@@ -115,6 +149,7 @@ export default function ManageQuizPage() {
   }
 
   const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/quiz/${quizId}/join` : `/quiz/${quizId}/join`
+  const canAfford = wallet?.balance != null && wallet.balance >= quiz.rewardSats
 
   return (
     <main className="min-h-screen">
@@ -167,6 +202,51 @@ export default function ManageQuizPage() {
             )}
           </motion.div>
 
+          {/* Reward Wallet Pool */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }}>
+            <Card className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Wallet size={16} className="text-[--btc]" />
+                <h2 className="font-display font-bold">Reward Pool</h2>
+              </div>
+
+              {!wallet ? (
+                <div className="shimmer h-12 rounded-lg" />
+              ) : !wallet.connected ? (
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                  <p className="text-yellow-400 text-sm font-medium mb-1">Wallet not connected</p>
+                  <p className="text-[--muted] text-xs mb-3">
+                    Connect your Blink wallet to fund quiz rewards. Set <code className="bg-[--surface-2] px-1.5 py-0.5 rounded text-[--btc] font-mono text-[10px]">BLINK_API_KEY</code> and <code className="bg-[--surface-2] px-1.5 py-0.5 rounded text-[--btc] font-mono text-[10px]">BLINK_WALLET_ID</code> in your .env file.
+                  </p>
+                  <p className="text-[--muted] text-xs">
+                    Get your free API key at <a href="https://dashboard.blink.sv" target="_blank" rel="noopener noreferrer" className="text-[--btc] hover:underline">dashboard.blink.sv</a>
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-baseline gap-2 mb-1">
+                      <span className="text-3xl font-bold font-mono text-[--btc]">{wallet.balance?.toLocaleString()}</span>
+                      <span className="text-sm text-[--muted]">sats</span>
+                    </div>
+                    <p className="text-xs text-[--muted]">
+                      {wallet.mode === 'demo' ? 'Demo wallet (simulated)' : 'Blink wallet balance'}
+                      {wallet.balance != null && quiz.rewardSats > 0 && (
+                        <span className={`ml-2 ${canAfford ? 'text-[--success]' : 'text-[--error]'}`}>
+                          {canAfford ? '✓ Enough for this quiz reward' : `✗ Need ${(quiz.rewardSats - wallet.balance).toLocaleString()} more sats`}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-[--muted]">Quiz reward</p>
+                    <p className="font-mono font-bold text-lg">{quiz.rewardSats.toLocaleString()} sats</p>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </motion.div>
+
           {/* Share Section */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
             <Card glow={quiz.status === 'active'} className="p-5 sm:p-6">
@@ -216,7 +296,9 @@ export default function ManageQuizPage() {
                   <Link href={`/setter/${quizId}/questions`}><Button>Add Questions First</Button></Link>
                 )}
                 {quiz.status === 'active' && (
-                  <Button variant="danger" onClick={() => updateStatus('end')}>End Quiz + Pay Winner</Button>
+                  <Button variant="danger" onClick={() => updateStatus('end')} loading={ending}>
+                    <Zap size={14} fill="currentColor" /> End Quiz + Pay Winner
+                  </Button>
                 )}
                 {quiz.status === 'ended' && (
                   <p className="text-[--muted] text-sm flex items-center gap-2"><CheckCircle size={14} className="text-[--success]" /> Quiz ended</p>
@@ -224,6 +306,52 @@ export default function ManageQuizPage() {
               </div>
             </Card>
           </motion.div>
+
+          {/* Payout Status */}
+          {quiz.status === 'ended' && quiz.payoutStatus && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
+              {quiz.payoutStatus === 'success' && (
+                <Card glow className="p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap size={16} className="text-[--btc]" fill="currentColor" />
+                    <h2 className="font-display font-bold text-[--btc]">Lightning Payout Sent!</h2>
+                  </div>
+                  <p className="text-sm">
+                    Winner: <strong>{quiz.winnerName}</strong> — {quiz.winnerScore} pts
+                  </p>
+                  <p className="text-[--muted] text-xs mt-1 font-mono break-all">{quiz.payoutHash}</p>
+                </Card>
+              )}
+
+              {quiz.payoutStatus === 'pending' && (
+                <Card className="p-5 border-yellow-500/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-4 h-4 border-2 border-yellow-500/30 border-t-yellow-500 rounded-full animate-spin" />
+                    <h2 className="font-display font-bold text-yellow-400">Sending Payment...</h2>
+                  </div>
+                  <p className="text-[--muted] text-sm">Payment to {quiz.winnerName} is being processed.</p>
+                </Card>
+              )}
+
+              {quiz.payoutStatus === 'failed' && (
+                <Card className="p-5 border-red-500/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle size={16} className="text-[--error]" />
+                    <h2 className="font-display font-bold text-[--error]">Payment Failed</h2>
+                  </div>
+                  <p className="text-[--muted] text-sm mb-1">
+                    Could not send {quiz.rewardSats.toLocaleString()} sats to {quiz.winnerName}.
+                  </p>
+                  <p className="text-[--error] text-xs font-mono mb-4 bg-red-500/10 px-3 py-2 rounded-lg">
+                    {quiz.payoutError}
+                  </p>
+                  <Button variant="primary" size="sm" onClick={retryPayout} loading={retrying}>
+                    <RefreshCw size={14} /> Retry Payment
+                  </Button>
+                </Card>
+              )}
+            </motion.div>
+          )}
 
           {/* Leaderboard */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
@@ -262,22 +390,6 @@ export default function ManageQuizPage() {
               )}
             </Card>
           </motion.div>
-
-          {/* Payout */}
-          <AnimatePresence>
-            {payout && (
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-                <Card glow className="p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Zap size={16} className="text-[--btc]" fill="currentColor" />
-                    <h2 className="font-display font-bold text-[--btc]">Lightning Payout Sent!</h2>
-                  </div>
-                  <p className="text-sm">Winner: <strong>{payout.winner.name as string}</strong> — {payout.winner.score as number} pts</p>
-                  <p className="text-[--muted] text-xs mt-1 font-mono break-all">{payout.payout.paymentHash as string}</p>
-                </Card>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </PageContainer>
 
