@@ -76,12 +76,15 @@ export default function ManageQuizPage() {
 
   async function updateStatus(action: 'activate' | 'end') {
     if (action === 'end') setEnding(true)
-    const res = await fetch(`/api/quiz/${quizId}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action }),
-    })
-    await res.json()
+    try {
+      await fetch(`/api/quiz/${quizId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+    } catch (err) {
+      console.error('updateStatus error:', err)
+    }
     setEnding(false)
     fetchDetails()
     fetchLeaderboard()
@@ -89,11 +92,15 @@ export default function ManageQuizPage() {
 
   async function retryPayout() {
     setRetrying(true)
-    await fetch(`/api/quiz/${quizId}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'retry-payout' }),
-    })
+    try {
+      await fetch(`/api/quiz/${quizId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'retry-payout' }),
+      })
+    } catch (err) {
+      console.error('retryPayout error:', err)
+    }
     setRetrying(false)
     fetchDetails()
   }

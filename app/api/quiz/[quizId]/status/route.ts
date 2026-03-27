@@ -76,39 +76,44 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ quizId: string }> }
 ) {
-  const { quizId } = await params
-  const { action } = await req.json()
+  try {
+    const { quizId } = await params
+    const { action } = await req.json()
 
-  if (action === 'activate') {
-    const quiz = await prisma.quiz.update({
-      where: { id: quizId },
-      data: { status: 'active' },
-    })
-    return NextResponse.json(quiz)
+    if (action === 'activate') {
+      const quiz = await prisma.quiz.update({
+        where: { id: quizId },
+        data: { status: 'active' },
+      })
+      return NextResponse.json(quiz)
+    }
+
+    if (action === 'end') {
+      // End the quiz first
+      await prisma.quiz.update({
+        where: { id: quizId },
+        data: { status: 'ended' },
+      })
+
+      // Attempt payout (won't throw — errors are caught internally)
+      const result = await attemptPayout(quizId)
+      return NextResponse.json(result)
+    }
+
+    if (action === 'retry-payout') {
+      const quiz = await prisma.quiz.findUnique({ where: { id: quizId } })
+      if (!quiz) return NextResponse.json({ error: 'Quiz not found' }, { status: 404 })
+      if (quiz.status !== 'ended') return NextResponse.json({ error: 'Quiz must be ended' }, { status: 400 })
+      if (quiz.payoutStatus === 'success') return NextResponse.json({ error: 'Already paid' }, { status: 400 })
+
+      const result = await attemptPayout(quizId)
+      return NextResponse.json(result)
+    }
+
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+  } catch (err: unknown) {
+    console.error('Status API error:', err)
+    const message = err instanceof Error ? err.message : 'Internal server error'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
-
-  if (action === 'end') {
-    // End the quiz
-    await prisma.quiz.update({
-      where: { id: quizId },
-      data: { status: 'ended' },
-    })
-
-    // Attempt payout
-    const result = await attemptPayout(quizId)
-    return NextResponse.json(result)
-  }
-
-  if (action === 'retry-payout') {
-    // Retry a failed payout
-    const quiz = await prisma.quiz.findUnique({ where: { id: quizId } })
-    if (!quiz) return NextResponse.json({ error: 'Quiz not found' }, { status: 404 })
-    if (quiz.status !== 'ended') return NextResponse.json({ error: 'Quiz must be ended' }, { status: 400 })
-    if (quiz.payoutStatus === 'success') return NextResponse.json({ error: 'Already paid' }, { status: 400 })
-
-    const result = await attemptPayout(quizId)
-    return NextResponse.json(result)
-  }
-
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 }
