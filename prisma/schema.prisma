@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Quiz {
+  id           String        @id @default(cuid())
+  title        String
+  description  String?
+  accessCode   String        @unique
+  rewardSats   Int
+  setterFeePaid Boolean      @default(false)
+  status       String        @default("draft")
+  createdAt    DateTime      @default(now())
+  questions    Question[]
+  participants Participant[]
+}
+
+model Question {
+  id            String   @id @default(cuid())
+  quizId        String
+  quiz          Quiz     @relation(fields: [quizId], references: [id])
+  text          String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctOption String
+  order         Int
+  answers       Answer[]
+}
+
+model Participant {
+  id               String    @id @default(cuid())
+  quizId           String
+  quiz             Quiz      @relation(fields: [quizId], references: [id])
+  name             String
+  lightningAddress String
+  score            Int       @default(0)
+  currentQuestion  Int       @default(0)
+  completedAt      DateTime?
+  joinedAt         DateTime  @default(now())
+  answers          Answer[]
+}
+
+model Answer {
+  id             String      @id @default(cuid())
+  participantId  String
+  participant    Participant @relation(fields: [participantId], references: [id])
+  questionId     String
+  question       Question    @relation(fields: [questionId], references: [id])
+  selectedOption String
+  isCorrect      Boolean
+  answeredAt     DateTime    @default(now())
+}
